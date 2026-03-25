@@ -1,7 +1,7 @@
 const { readdirSync } = require('fs');
 
 // eslint-disable-next-line no-unused-vars
-const { InteractionContextType, SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, CommandInteraction, Client } = require('discord.js');
+const { MessageFlags, InteractionContextType, SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, CommandInteraction, Client } = require('discord.js');
 
 /* Formats command usage */
 const formatUsage = (string) => string.split('\n').map((str) => '`' + str + '`').join('\n');
@@ -18,7 +18,7 @@ module.exports = {
 	},
 	defer: {
 		defer: true,
-		ephemeral: false,
+		ephemeral: true,
 	},
 
 	data: new SlashCommandBuilder()
@@ -73,7 +73,7 @@ module.exports = {
 			/* Send the command-specific embed and return true */
 			await interaction.followUp({
 				embeds: [embed],
-				ephemeral: false,
+				flags: MessageFlags.Ephemeral,
 			});
 			return true;
 		}
@@ -104,7 +104,7 @@ module.exports = {
 			/* Send the category's commands, and return true */
 			await interaction.followUp({
 				embeds: [embed],
-				ephemeral: false,
+				flags: MessageFlags.Ephemeral,
 			});
 			return true;
 		}
@@ -115,6 +115,8 @@ module.exports = {
 			.setDescription('Use `/help <category>` to get commands in one category, or `/help <command>` to get more info on a single command')
 			.addFields(
 				{ name: '🛎️ Information', value: '`help`, `links`, `report`, `suggest`', inline: false },
+				{ name: '🎲 Fun', value: '`tictactoe`', inline: false },
+				{ name: '🛡️ Admin', value: '`new-video`, `rules`', inline: false },
 			)
 			.setColor('#0099FF');
 
@@ -135,6 +137,7 @@ module.exports = {
 		await interaction.followUp({
 			embeds: [embed],
 			components: [row],
+			flags: MessageFlags.Ephemeral,
 		});
 
 		return true;

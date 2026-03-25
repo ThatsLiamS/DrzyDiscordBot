@@ -1,12 +1,12 @@
 // eslint-disable-next-line no-unused-vars
-const { InteractionContextType, SlashCommandBuilder, EmbedBuilder, WebhookClient, ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, CommandInteraction, Client } = require('discord.js');
+const { MessageFlags, InteractionContextType, SlashCommandBuilder, EmbedBuilder, WebhookClient, ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, CommandInteraction, Client } = require('discord.js');
 
 const format = (string) => string.split('\n').map((line) => '> ' + line).join('\n');
 
 module.exports = {
 	name: 'suggest',
 	description: 'Suggest an new stream game, or background music!',
-	usage: '/suggest',
+	usage: '/suggest <category>',
 
 	cooldown: {
 		time: 1 * 60,
@@ -14,13 +14,23 @@ module.exports = {
 	},
 	defer: {
 		defer: false,
-		ephemeral: false,
+		ephemeral: true,
 	},
 
 	data: new SlashCommandBuilder()
 		.setName('suggest')
 		.setDescription('Suggest an new stream game, or background music!')
-		.setContexts(InteractionContextType.Guild),
+		.setContexts(InteractionContextType.Guild)
+		
+		.addStringOption(option => 
+			option.setName('category')
+				.setDescription('What would you like to suggest?')
+				.setRequired(true)
+				.addChoices(
+					{ name: 'New Game', value: 'game' },
+					{ name: 'Background Music', value: 'music' },
+				),
+		),
 
 	/**
 	 * @async @function
@@ -37,6 +47,8 @@ module.exports = {
 	 * @author Liam Skinner <me@liamskinner.co.uk>
 	**/
 	execute: async ({ interaction, client }) => {
+		const category = interaction.options.getString('platform');
+
 
 		/* Create modal to display */
 		const modalPopup = new ModalBuilder()
@@ -52,14 +64,6 @@ module.exports = {
 				.setMaxLength(150)
 				.setMinLength(5),
 		);
-		const category = new ActionRowBuilder().addComponents(
-			new TextInputBuilder()
-				.setCustomId('category')
-				.setLabel('Game, or Music Suggestion')
-				.setStyle(TextInputStyle.Short)
-				.setMaxLength(5)
-				.setMinLength(4),
-		);
 		const description = new ActionRowBuilder().addComponents(
 			new TextInputBuilder()
 				.setCustomId('description')
@@ -69,7 +73,7 @@ module.exports = {
 		);
 
 		/* Display the modal */
-		modalPopup.addComponents(title, category, description);
+		modalPopup.addComponents(title, description);
 		await interaction.showModal(modalPopup);
 
 		/* Get the responses */
@@ -78,8 +82,10 @@ module.exports = {
 			.then(async (modal) => {
 
 				await modal.deferReply({
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
+
+				const categoryFlag = category === 'music' ? 'Music: ' : 'Game: ';
 
 				const embed = new EmbedBuilder()
 					.setColor('#0099ff')
@@ -87,7 +93,7 @@ module.exports = {
 						name: modal.user.username,
 						iconURL: modal.user.displayAvatarURL(),
 					})
-					.setTitle(`${modal.fields.getTextInputValue('title')}`)
+					.setTitle(categoryFlag + modal.fields.getTextInputValue('title'))
 					.setDescription(`**Description:**\n${format(modal.fields.getTextInputValue('description'))}`)
 					.setFooter({
 						text: `User ID: ${modal.member.id}`,
@@ -95,12 +101,9 @@ module.exports = {
 					.setTimestamp();
 
 				/* Locate the webhook */
-				let webhook;
-				if (modal.fields.getTextInputValue('category').toLowerCase().startsWith('music')) {
-					webhook = new WebhookClient({ url: process.env['Suggestion_Music_Webhook'] });
-				} else {
-					webhook = new WebhookClient({ url: process.env['Suggestion_Game_Webhook'] });
-				}
+				const webhook = category === 'music'
+					? new WebhookClient({ url: process.env['Suggestion_Music_Webhook'] })
+					: new WebhookClient({ url: process.env['Suggestion_Game_Webhook'] });
 
 				try {
 					/* Send the webhook and impersonate the user */
@@ -120,15 +123,15 @@ module.exports = {
 					/* Let the user know it was successful */
 					await modal.followUp({
 						content: 'Thank you, your suggestion has been sent.',
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 					});
 					return true;
 
 				} catch (error) {
 					console.error('Error sending suggestion or reacting:', error);
 					await modal.followUp({
-						content: 'There was an error submitting your suggestion. Please let a moderator know!',
-						ephemeral: true,
+						content: 'There was an error submitting your suggestion. Please use the `/report` command!',
+						flags: MessageFlags.Ephemeral,
 					});
 					return false;
 				}
@@ -138,7 +141,7 @@ module.exports = {
 			.catch(async () => {
 				await interaction.followUp({
 					content: 'Sorry, you took too long to respond.',
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return false;
 			});

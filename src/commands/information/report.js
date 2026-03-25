@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-const { InteractionContextType, SlashCommandBuilder, EmbedBuilder, WebhookClient, ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, CommandInteraction, Client } = require('discord.js');
+const { MessageFlags, InteractionContextType, SlashCommandBuilder, EmbedBuilder, WebhookClient, ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, CommandInteraction, Client } = require('discord.js');
 
 const format = (string) => string.split('\n').map((line) => '> ' + line).join('\n');
 
@@ -15,7 +15,7 @@ module.exports = {
 	},
 	defer: {
 		defer: false,
-		ephemeral: false,
+		ephemeral: true,
 	},
 
 	data: new SlashCommandBuilder()
@@ -80,7 +80,7 @@ module.exports = {
 		const res = interaction.awaitModalSubmit({ filter, time: 150_000 })
 			.then(async (modal) => {
 
-				await modal.deferReply({ ephemeral: true });
+				await modal.deferReply({ flags: MessageFlags.Ephemeral });
 
 				const formattedDescription = format(modal.fields.getTextInputValue('reportDescription'));
 				const formattedSteps = format(modal.fields.getTextInputValue('reportReproduce'));
@@ -111,7 +111,7 @@ module.exports = {
 				/* Returns true to enable the cooldown */
 				modal.followUp({
 					content: 'Thank you for helping us make Drzy Bot even better.',
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return true;
 
@@ -120,6 +120,7 @@ module.exports = {
 			.catch(async () => {
 				await interaction.followUp({
 					content: 'Sorry, you took too long to respond.',
+					flags: MessageFlags.Ephemeral,
 				});
 				return false;
 			});

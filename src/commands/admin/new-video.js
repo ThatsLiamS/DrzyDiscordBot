@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-const { InteractionContextType, SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, CommandInteraction, Client, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { MessageFlags, InteractionContextType, SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, CommandInteraction, Client, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
 	name: 'new-video',
@@ -12,7 +12,7 @@ module.exports = {
 	},
 	defer: {
 		defer: false,
-		ephemeral: false,
+		ephemeral: true,
 	},
 
 	data: new SlashCommandBuilder()
@@ -88,7 +88,7 @@ module.exports = {
 			.then(async (modal) => {
 
 				await modal.deferReply({
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 
 				const inputTitle = modal.fields.getTextInputValue('title');
@@ -149,15 +149,15 @@ module.exports = {
 
 					await modal.followUp({
 						content: `✅ Successfully announced your new ${platform} video!`,
-						ephemeral: true,
+						flags: MessageFlags.Ephemeral,
 					});
 					return true;
 
 				} catch (error) {
 					console.error(error);
 					await modal.followUp({
-						content: 'There was an error submitting your announcement. Make sure your Channel IDs are correct in the .env file and the bot has permission to post there!',
-						ephemeral: true,
+						content: 'There was an error submitting your suggestion. Please use the `/report` command!',
+						flags: MessageFlags.Ephemeral,
 					});
 					return false;
 				}
@@ -166,7 +166,7 @@ module.exports = {
 			.catch(async () => {
 				await interaction.followUp({
 					content: 'Sorry, you took too long to fill out the form.',
-					ephemeral: true,
+					flags: MessageFlags.Ephemeral,
 				});
 				return false;
 			});
