@@ -1,11 +1,24 @@
-const { readdirSync } = require('fs');
+const { 
+	MessageFlags, 
+	InteractionContextType, 
+	SlashCommandBuilder, 
+	EmbedBuilder, 
+	ButtonBuilder, 
+	ButtonStyle, 
+	ActionRowBuilder,
+} = require('discord.js');
 
-// eslint-disable-next-line no-unused-vars
-const { MessageFlags, InteractionContextType, SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, CommandInteraction, Client } = require('discord.js');
-
-/* Formats command usage */
-const formatUsage = (string) => string.split('\n').map((str) => '`' + str + '`').join('\n');
-
+/**
+ * @function formatUsage
+ * @summary Formats command usage strings into inline code blocks
+ *
+ * @param {string} string - The raw usage string
+ *
+ * @returns {string} The formatted usage string
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
+const formatUsage = (string) => string.split('\n').map((str) => `\`${str}\``).join('\n');
 
 module.exports = {
 	name: 'help',
@@ -25,6 +38,7 @@ module.exports = {
 		.setName('help')
 		.setDescription('Get a list of my commands!')
 		.setContexts(InteractionContextType.Guild)
+
 		.addStringOption(option => option
 			.setName('command')
 			.setDescription('Which command or category?')
@@ -35,82 +49,68 @@ module.exports = {
 	 * @async @function
 	 * @group Commands @subgroup Information
 	 * @summary Help management - overview, or specific command
-	 * 
+	 *
 	 * @param {Object} param
 	 * @param {CommandInteraction} param.interaction - DiscordJS Slash Command Object
 	 * @param {Client} param.client - DiscordJS Bot Client Object
-	 * 
+	 *
 	 * @returns {Promise<boolean>} True (Success) - triggers cooldown.
 	 * @returns {Promise<boolean>} False (Error) - skips cooldown.
-	 * 
+	 *
 	 * @author Liam Skinner <me@liamskinner.co.uk>
 	**/
 	execute: async ({ interaction, client }) => {
+		const query = interaction.options.getString('command')?.toLowerCase();
+		const categories = ['information', 'fun', 'admin'];
 
-		const cmdName = interaction.options.getString('command')?.toLowerCase();
+		if (query) {
+			const command = client.commands.get(query);
 
-		/* Shows information on a selected command */
-		const cmd = client.commands.get(cmdName);
-		if (cmd) {
-			const embed = new EmbedBuilder()
-				.setColor('#0099FF')
-				.setTitle(cmd.name.charAt(0).toUpperCase() + cmd.name.slice(1) + ' Command')
-				.setDescription(cmd.description)
-				.setTimestamp()
-				.addFields({ name: '__Usage:__', value: `${formatUsage(cmd.usage)}`, inline: false });
+			if (command) {
+				const embed = new EmbedBuilder()
+					.setColor('#0099FF')
+					.setTitle(`${command.name.charAt(0).toUpperCase() + command.name.slice(1)} Command`)
+					.setDescription(command.description)
+					.addFields({ name: '__Usage:__', value: formatUsage(command.usage), inline: false })
+					.setTimestamp();
 
-			if (cmd?.cooldown?.text) {
-				embed.addFields({ name: '__Cooldown:__', value: `${cmd.cooldown.text}`, inline: false });
-			}
-			if (cmd?.permissions?.[0]) {
-				embed.addFields({ name: '__Permissions:__', value: '`' + cmd.permissions.join('` `') + '`', inline: false });
-			}
-			if (cmd.error === true) {
-				embed.addFields({ name: '__Error:__', value: 'This command is currently unavailable, please try again later.', inline: false })
-					.setColor('Red');
-			}
-
-			/* Send the command-specific embed and return true */
-			await interaction.followUp({
-				embeds: [embed],
-				flags: MessageFlags.Ephemeral,
-			});
-			return true;
-		}
-
-		/* Filter through the files and get the commands from the selected category */
-		const categories = ['information']; 
-		if (categories.includes(cmdName)) {
-			let description = '__**Information Commands**__\n';
-
-			try {
-				// Ensure this path matches your folder structure!
-				const commandFiles = readdirSync(`${__dirname}/../../commands/${cmdName}`).filter(file => file.endsWith('.js'));
-				for (const file of commandFiles) {
-					// eslint-disable-next-line security/detect-non-literal-require
-					const command = require(`${__dirname}/../../commands/${cmdName}/${file}`);
-					description = description + `${formatUsage(command.usage)}\n`;
+				if (command.cooldown?.text) {
+					embed.addFields({ name: '__Cooldown:__', value: command.cooldown.text, inline: false });
 				}
-			} catch (error) {
-				console.error('Error reading category directory:', error);
-				description += 'Error loading commands for this category.';
+
+				if (command.permissions?.length) {
+					embed.addFields({ name: '__Permissions:__', value: `\`${command.permissions.join('` `')}\``, inline: false });
+				}
+
+				if (command.error) {
+					embed.setColor('Red')
+						.addFields({ name: '__Error:__', value: 'This command is currently unavailable, please try again later.', inline: false });
+				}
+
+				await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
+				return true;
 			}
 
-			const embed = new EmbedBuilder()
-				.setTitle(cmdName.charAt(0).toUpperCase() + cmdName.slice(1) + ' Commands')
-				.setDescription(description)
-				.setColor('#0099FF');
+			if (categories.includes(query)) {
+				const categoryCommands = client.commands.filter(cmd => 
+					cmd.subgroup?.toLowerCase() === query || cmd.group?.toLowerCase() === query,
+				);
 
-			/* Send the category's commands, and return true */
-			await interaction.followUp({
-				embeds: [embed],
-				flags: MessageFlags.Ephemeral,
-			});
-			return true;
+				const description = categoryCommands.size > 0
+					? categoryCommands.map(cmd => formatUsage(cmd.usage)).join('\n')
+					: 'No commands found in this category.';
+
+				const embed = new EmbedBuilder()
+					.setTitle(`${query.charAt(0).toUpperCase() + query.slice(1)} Commands`)
+					.setDescription(`__**${query.charAt(0).toUpperCase() + query.slice(1)} Commands**__\n${description}`)
+					.setColor('#0099FF');
+
+				await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
+				return true;
+			}
 		}
 
-		/* List of all our command categories */
-		const embed = new EmbedBuilder()
+		const mainEmbed = new EmbedBuilder()
 			.setTitle('Drzy Commands')
 			.setDescription('Use `/help <category>` to get commands in one category, or `/help <command>` to get more info on a single command')
 			.addFields(
@@ -120,7 +120,6 @@ module.exports = {
 			)
 			.setColor('#0099FF');
 
-		/* Creates row of external link buttons */
 		const row = new ActionRowBuilder()
 			.addComponents(
 				new ButtonBuilder()
@@ -133,9 +132,8 @@ module.exports = {
 					.setURL('https://www.youtube.com/@drzy_mc'),
 			);
 
-		/* Returns true to enable the cooldown */
 		await interaction.followUp({
-			embeds: [embed],
+			embeds: [mainEmbed],
 			components: [row],
 			flags: MessageFlags.Ephemeral,
 		});

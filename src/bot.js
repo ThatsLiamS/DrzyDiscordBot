@@ -1,6 +1,10 @@
 const fs = require('fs');
 
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const {
+	Client,
+	GatewayIntentBits,
+	Partials,
+} = require('discord.js');
 
 
 /* DiscordJS Client initialisation */

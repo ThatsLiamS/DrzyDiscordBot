@@ -1,4 +1,40 @@
-const { SlashCommandBuilder, EmbedBuilder, InteractionContextType } = require('discord.js');
+const {
+	SlashCommandBuilder,
+	EmbedBuilder,
+	InteractionContextType,
+} = require('discord.js');
+
+const FAQ_CONTENT = {
+	mods: {
+		title: '🛠️ Drzy\'s Mods & Shaders',
+		description: 'Here is everything Drzy uses to make his Minecraft look and feel amazing:',
+		fields: [
+			{ 
+				name: 'Mods', 
+				value: '• [Hold my Items](https://modrinth.com/mod/hold-my-items)\n• [Distant Horizons](https://modrinth.com/mod/distanthorizons)\n*...plus a few minor mods!*', 
+				inline: false, 
+			},
+			{ 
+				name: 'Shaders', 
+				value: '• [Photon Shader](https://modrinth.com/shader/photon-shader)\n*...plus a few resource packs!*', 
+				inline: false, 
+			},
+		],
+	},
+	world: {
+		title: '🌍 World Information',
+		description: 'Details about the world Drzy is currently playing on:',
+		fields: [
+			{ name: 'Platform', value: 'Minecraft Java Edition', inline: false },
+			{ name: 'Seed', value: '*To Be Announced!*', inline: false },
+			{ name: 'World Type', value: '*To Be Announced!*', inline: false },
+		],
+	},
+	play: {
+		title: '🤝 Can I play with Drzy?',
+		description: 'The streamed realm is currently a **strict single-player experience**.\n\nDrzy takes real pride in knowing he gathered every single resource and built everything entirely from scratch, with absolutely no handouts from followers. Because of this, he does not accept players into the world.',
+	},
+};
 
 module.exports = {
 	name: 'faq',
@@ -30,52 +66,39 @@ module.exports = {
 				),
 		),
 
+	/**
+	 * @async @function
+	 * @group Commands @subgroup Information
+	 * @summary Provide answers to common questions
+	 *
+	 * @param {Object} param
+	 * @param {CommandInteraction} param.interaction - DiscordJS Slash Command Object
+	 * @param {Client} param.client - DiscordJS Bot Client Object
+	 *
+	 * @returns {Promise<boolean>} True (Success) - triggers cooldown.
+	 * @returns {Promise<boolean>} False (Error) - skips cooldown.
+	 *
+	 * @author Liam Skinner <me@liamskinner.co.uk>
+	**/
 	execute: async ({ interaction, client }) => {
-		// Grab the value they selected from the drop-down
 		const topic = interaction.options.getString('topic');
-		
-		// Set up the base embed (using an orange/bronze color, but feel free to change it!)
+		const selectedFaq = FAQ_CONTENT[topic];
+
+		if (!selectedFaq) {
+			return false;
+		}
+
 		const embed = new EmbedBuilder()
 			.setColor('#cd7f32')
 			.setAuthor({ name: 'Drzy FAQ', iconURL: client.user.displayAvatarURL() })
+			.setTitle(selectedFaq.title)
+			.setDescription(selectedFaq.description)
 			.setTimestamp();
 
-		// Fill the embed with different info depending on what they picked
-		switch (topic) {
-		case 'mods':
-			embed.setTitle('🛠️ Drzy\'s Mods & Shaders')
-				.setDescription('Here is everything Drzy uses to make his Minecraft look and feel amazing:')
-				.addFields(
-					{ 
-						name: 'Mods', 
-						value: '• [Hold my Items](https://modrinth.com/mod/hold-my-items)\n• [Distant Horizons](https://modrinth.com/mod/distanthorizons)\n*...plus a few minor mods!*', 
-						inline: false, 
-					},
-					{ 
-						name: 'Shaders', 
-						value: '• [Photon Shader](https://modrinth.com/shader/photon-shader)\n*...plus a few resource packs!*', 
-						inline: false, 
-					},
-				);
-			break;
-
-		case 'world':
-			embed.setTitle('🌍 World Information')
-				.setDescription('Details about the world Drzy is currently playing on:')
-				.addFields(
-					{ name: 'Platform', value: 'Minecraft Java Edition', inline: false },
-					{ name: 'Seed', value: '*To Be Announced!*', inline: false },
-					{ name: 'World Type', value: '*To Be Announced!*', inline: false },
-				);
-			break;
-
-		case 'play':
-			embed.setTitle('🤝 Can I play with Drzy?')
-				.setDescription('The streamed realm is currently a **strict single-player experience**.\n\nDrzy takes real pride in knowing he gathered every single resource and built everything entirely from scratch, with absolutely no handouts from followers. Because of this, he does not accept players into the world.');
-			break;
+		if (selectedFaq.fields) {
+			embed.addFields(selectedFaq.fields);
 		}
 
-		// Send the final response!
 		await interaction.followUp({ embeds: [embed] });
 		return true;
 	},

@@ -1,8 +1,26 @@
-// eslint-disable-next-line no-unused-vars
-const { MessageFlags, InteractionContextType, SlashCommandBuilder, EmbedBuilder, WebhookClient, ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, CommandInteraction, Client } = require('discord.js');
+const { 
+	MessageFlags, 
+	InteractionContextType, 
+	SlashCommandBuilder, 
+	EmbedBuilder, 
+	WebhookClient, 
+	ModalBuilder, 
+	ActionRowBuilder, 
+	TextInputBuilder, 
+	TextInputStyle,
+} = require('discord.js');
 
-const format = (string) => string.split('\n').map((line) => '> ' + line).join('\n');
-
+/**
+ * @function format
+ * @summary Formats a multi-line string into a Discord blockquote
+ *
+ * @param {string} string - The raw input string
+ *
+ * @returns {string} The formatted string with blockquote markdown
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
+const format = (string) => string.split('\n').map((line) => `> ${line}`).join('\n');
 
 module.exports = {
 	name: 'report',
@@ -10,7 +28,7 @@ module.exports = {
 	usage: '/report',
 
 	cooldown: {
-		time: 1 * 60,
+		time: 60,
 		text: '1 Minute',
 	},
 	defer: {
@@ -27,25 +45,24 @@ module.exports = {
 	 * @async @function
 	 * @group Commands @subgroup Information
 	 * @summary Submit bug report
-	 * 
+	 *
 	 * @param {Object} param
 	 * @param {CommandInteraction} param.interaction - DiscordJS Slash Command Object
 	 * @param {Client} param.client - DiscordJS Bot Client Object
-	 * 
+	 *
 	 * @returns {Promise<boolean>} True (Success) - triggers cooldown.
 	 * @returns {Promise<boolean>} False (Error) - skips cooldown.
-	 * 
+	 *
 	 * @author Liam Skinner <me@liamskinner.co.uk>
 	**/
 	execute: async ({ interaction, client }) => {
-
-		/* Create modal to display */
+		const modalCustomId = `report-${interaction.user.id}-${client.user.id}`;
+		
 		const modalPopup = new ModalBuilder()
-			.setCustomId(`report-${interaction.user.id}-${client.user.id}`)
+			.setCustomId(modalCustomId)
 			.setTitle('Drzy\'s Bug Report!');
 
-		/* Add input fields */
-		const title = new ActionRowBuilder().addComponents(
+		const titleInput = new ActionRowBuilder().addComponents(
 			new TextInputBuilder()
 				.setCustomId('reportTitle')
 				.setLabel('Short title')
@@ -53,7 +70,8 @@ module.exports = {
 				.setMaxLength(150)
 				.setMinLength(5),
 		);
-		const description = new ActionRowBuilder().addComponents(
+
+		const descriptionInput = new ActionRowBuilder().addComponents(
 			new TextInputBuilder()
 				.setCustomId('reportDescription')
 				.setLabel('A clear and concise description')
@@ -61,7 +79,8 @@ module.exports = {
 				.setMaxLength(2000)
 				.setMinLength(50),
 		);
-		const reproduce = new ActionRowBuilder().addComponents(
+
+		const reproduceInput = new ActionRowBuilder().addComponents(
 			new TextInputBuilder()
 				.setCustomId('reportReproduce')
 				.setLabel('Steps to reproduce the behavior')
@@ -71,62 +90,58 @@ module.exports = {
 				.setPlaceholder('1. Go to \'....\'\n2. Click on \'....\'\n3. Scroll down to \'....\''),
 		);
 
-		/* Display the modal */
-		modalPopup.addComponents(title, description, reproduce);
+		modalPopup.addComponents(titleInput, descriptionInput, reproduceInput);
+		
 		await interaction.showModal(modalPopup);
 
-		/* Get the responses */
-		const filter = (modal) => modal.customId === `report-${interaction.user.id}-${client.user.id}`;
-		const res = interaction.awaitModalSubmit({ filter, time: 150_000 })
-			.then(async (modal) => {
-
-				await modal.deferReply({ flags: MessageFlags.Ephemeral });
-
-				const formattedDescription = format(modal.fields.getTextInputValue('reportDescription'));
-				const formattedSteps = format(modal.fields.getTextInputValue('reportReproduce'));
-
-				const embed = new EmbedBuilder()
-					.setColor('#0099ff')
-					.setTitle(`${modal.fields.getTextInputValue('reportTitle')}`)
-					.setDescription(`**Description:**\n${formattedDescription}\n\n**Steps to Reproduce:**\n${formattedSteps}`)
-					.setAuthor({
-						name: modal.user.username,
-						iconURL: modal.user.displayAvatarURL(),
-					})
-					.setFooter({
-						text: `User ID: ${modal.member.id}`,
-					})
-					.setTimestamp();
-
-				/* Locate and send the webhook */
-				const webhook = new WebhookClient({
-					url: process.env['Report_Webhook'],
-				});
-				webhook.send({
-					username: client.user.username,
-					avatarURL: client.user.displayAvatarURL(),
-					embeds: [embed],
-				});
-
-				/* Returns true to enable the cooldown */
-				modal.followUp({
-					content: 'Thank you for helping us make Drzy Bot even better.',
-					flags: MessageFlags.Ephemeral,
-				});
-				return true;
-
-			})
-			/* If they didn't response */
-			.catch(async () => {
-				await interaction.followUp({
-					content: 'Sorry, you took too long to respond.',
-					flags: MessageFlags.Ephemeral,
-				});
-				return false;
+		try {
+			const modalInteraction = await interaction.awaitModalSubmit({ 
+				filter: (m) => m.customId === modalCustomId, 
+				time: 150_000 ,
 			});
 
-		/* Returns boolean to enable the cooldown */
-		return res;
+			await modalInteraction.deferReply({ flags: MessageFlags.Ephemeral });
 
+			const reportTitle = modalInteraction.fields.getTextInputValue('reportTitle');
+			const formattedDescription = format(modalInteraction.fields.getTextInputValue('reportDescription'));
+			const formattedSteps = format(modalInteraction.fields.getTextInputValue('reportReproduce'));
+
+			const embed = new EmbedBuilder()
+				.setColor('#0099ff')
+				.setTitle(reportTitle)
+				.setDescription(`**Description:**\n${formattedDescription}\n\n**Steps to Reproduce:**\n${formattedSteps}`)
+				.setAuthor({
+					name: modalInteraction.user.username,
+					iconURL: modalInteraction.user.displayAvatarURL(),
+				})
+				.setFooter({
+					text: `User ID: ${modalInteraction.user.id}`,
+				})
+				.setTimestamp();
+
+			const webhook = new WebhookClient({ url: process.env['Report_Webhook'] });
+			
+			await webhook.send({
+				username: client.user.username,
+				avatarURL: client.user.displayAvatarURL(),
+				embeds: [embed],
+			});
+
+			await modalInteraction.followUp({
+				content: 'Thank you for helping us make Drzy Bot even better.',
+				flags: MessageFlags.Ephemeral,
+			});
+
+			return true;
+		}
+		catch {
+			if (interaction.replied || interaction.deferred) {
+				await interaction.followUp({
+					content: 'Sorry, you took too long to respond or an error occurred.',
+					flags: MessageFlags.Ephemeral,
+				});
+			}
+			return false;
+		}
 	},
 };

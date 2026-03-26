@@ -1,46 +1,154 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { TikTokLiveConnection, ControlEvent, WebcastEvent } = require('tiktok-live-connector');
+const {
+	EmbedBuilder,
+	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
+} = require('discord.js');
+const {
+	TikTokLiveConnection,
+	ControlEvent,
+	WebcastEvent,
+} = require('tiktok-live-connector');
 
-const tiktokUsername = 'drzy_mc';
+const TIKTOK_USERNAME = 'drzy_mc';
+const MIN_GIFT_THRESHOLD = 50;
 
-// State management
 let isLive = false;
 let connection = null;
 let reconnectTimeout = null;
 
-const connectToLive = (client) => {
-	connection = new TikTokLiveConnection(tiktokUsername);
+/**
+ * @async @function sendLiveEmbed
+ * @group Utility @subgroup Monitoring
+ * @summary Announces when the TikTok stream goes live
+ *
+ * @param {Client} client - DiscordJS Bot Client Object
+ *
+ * @returns {Promise<void>}
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
+const sendLiveEmbed = async (client) => {
+	const channelId = process.env.Announcement_Tiktok_Channel;
+	const roleId = process.env.Announcement_Tiktok_Role;
 
-	connection.connect()
-		.then(() => {
-			if (!isLive) {
-				isLive = true;
-				sendLiveEmbed(client);
-			}
-		})
-		.catch((err) => {
-			console.error('❌ Failed to connect to TikTok Live:', err.message);
-			handleDisconnect(client);
+	const embed = new EmbedBuilder()
+		.setColor('#00F2FE')
+		.setAuthor({ name: 'Drzy', iconURL: client.user.displayAvatarURL() })
+		.setTitle('🔴 LIVE NOW ON TIKTOK')
+		.setURL(`https://www.tiktok.com/@${TIKTOK_USERNAME}/live`)
+		.setDescription('Drzy is now live on TikTok! Come hang out and join the stream!')
+		.setFooter({ text: "🎵 Don't forget to drop a follow!" })
+		.setTimestamp();
+		
+	const row = new ActionRowBuilder().addComponents(
+		new ButtonBuilder()
+			.setStyle(ButtonStyle.Link)
+			.setLabel('Watch Stream')
+			.setURL(`https://www.tiktok.com/@${TIKTOK_USERNAME}/live`),
+	);
+		
+	try {
+		const targetChannel = await client.channels.fetch(channelId);
+		if (!targetChannel) {
+			return;
+		}
+
+		await targetChannel.send({
+			content: roleId ? `Hey <@&${roleId}>, Drzy is live!` : 'Drzy is live on TikTok!',
+			embeds: [embed],
+			components: [row], 
 		});
-
-	connection.on(ControlEvent.DISCONNECTED, () => {
-		if (isLive) {
-			isLive = false;
-		}
-		handleDisconnect(client);
-	});
-
-	connection.on(WebcastEvent.STREAM_END, () => {
-		if (isLive) {
-			isLive = false;
-		}
-		handleDisconnect(client);
-	});
-
-	connection.on(WebcastEvent.GIFT, (data) => processGift(client, data));
+	}
+	catch (error) {
+		console.error('❌ Error sending Live Embed:', error.message);
+	}
 };
 
-// Handlers
+/**
+ * @async @function sendGiftEmbed
+ * @group Utility @subgroup Monitoring
+ * @summary Logs significant TikTok gifts to a specific channel
+ *
+ * @param {Client} client - DiscordJS Bot Client Object
+ * @param {Object} data - Formatted gift data
+ *
+ * @returns {Promise<void>}
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
+const sendGiftEmbed = async (client, data) => {
+	const channelId = process.env.Donator_Channel;
+	const { user, gift, amount, totalCoins } = data;
+
+	const embed = new EmbedBuilder()
+		.setColor('#FFD700')
+		.setAuthor({ name: 'New TikTok Live Gift 🎁' })
+		.setTitle(`${user} sent a ${gift}!`)
+		.setURL(`https://www.tiktok.com/@${TIKTOK_USERNAME}/live`)
+		.addFields(
+			{ name: 'Amount', value: `${amount}x ${gift}${amount === 1 ? '' : 's'}`, inline: true },
+			{ name: 'Value', value: `${totalCoins} Coins`, inline: true },
+		)
+		.setFooter({ text: 'TikTok Live Gift Event' })
+		.setTimestamp();
+		
+	try {
+		const targetChannel = await client.channels.fetch(channelId);
+		if (targetChannel) {
+			await targetChannel.send({ embeds: [embed] });
+		}
+	}
+	catch (error) {
+		console.error('❌ Error sending Gift Embed:', error.message);
+	}
+};
+
+/**
+ * @function processGift
+ * @group Utility @subgroup Monitoring
+ * @summary Validates and prepares gift data for Discord logging
+ *
+ * @param {Client} client - DiscordJS Bot Client Object
+ * @param {Object} data - Raw gift data from TikTok Webcast
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
+const processGift = (client, data) => {
+	const { user, giftDetails, repeatCount, repeatEnd, diamondCount } = data;
+	
+	if (!user || !giftDetails) {
+		return;
+	}
+
+	if (giftDetails.giftType === 1 && !repeatEnd) {
+		return;
+	}
+
+	const amount = Number(repeatCount) || 1;
+	const totalCoins = amount * (Number(diamondCount) || 0);
+
+	if (totalCoins < MIN_GIFT_THRESHOLD) {
+		return;
+	}
+
+	sendGiftEmbed(client, {
+		user: user.uniqueId,
+		gift: giftDetails.giftName,
+		amount,
+		totalCoins,
+	});
+};
+
+/**
+ * @function handleDisconnect
+ * @group Utility @subgroup Monitoring
+ * @summary Manages reconnection attempts when the TikTok stream ends or drops
+ *
+ * @param {Client} client - DiscordJS Bot Client Object
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
 const handleDisconnect = (client) => {
 	if (reconnectTimeout) {
 		return;
@@ -52,108 +160,49 @@ const handleDisconnect = (client) => {
 	}, 60_000);
 };
 
-const processGift = (client, data) => {
-	const { user, giftDetails: gift, repeatCount, repeatEnd, diamondCount } = data;
-	if (!user || !gift) {return;}
+/**
+ * @function connectToLive
+ * @group Utility @subgroup Monitoring
+ * @summary Establishes a connection to the TikTok Live Webcast API
+ *
+ * @param {Client} client - DiscordJS Bot Client Object
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
+const connectToLive = (client) => {
+	connection = new TikTokLiveConnection(TIKTOK_USERNAME);
 
-	// Ignore streak gifts until they are finished
-	const isStreak = gift.giftType === 1;
-	if (isStreak && !repeatEnd) {
-		return;
-	}
+	connection.connect()
+		.then(() => {
+			if (!isLive) {
+				isLive = true;
+				sendLiveEmbed(client);
+			}
+		})
+		.catch(() => handleDisconnect(client));
 
-	const amount = Number(repeatCount) || 1;
-	const coinsPerGift = Number(diamondCount) || 1;
-	const totalCoins = amount * coinsPerGift;
+	connection.on(ControlEvent.DISCONNECTED, () => {
+		isLive = false;
+		handleDisconnect(client);
+	});
 
-	// Minimum coin threshold
-	if (totalCoins < 50) {
-		return;
-	}
+	connection.on(WebcastEvent.STREAM_END, () => {
+		isLive = false;
+		handleDisconnect(client);
+	});
 
-	const giftData = {
-		user: user.uniqueId,
-		gift: gift.giftName,
-		amount,
-		totalCoins,
-	};
-
-	sendGiftEmbed(client, giftData);
+	connection.on(WebcastEvent.GIFT, (data) => processGift(client, data));
 };
 
-
-const sendLiveEmbed = async (client) => {
-	const channelId = process.env.Announcement_Tiktok_Channel;
-	const roleId = process.env.Announcement_Tiktok_Role;
-
-	const embed = new EmbedBuilder()
-		.setColor('#00F2FE')
-		.setAuthor({ name: 'Drzy', iconURL: client.user.displayAvatarURL() })
-		.setTitle('🔴 LIVE NOW ON TIKTOK')
-		.setURL(`https://www.tiktok.com/@${tiktokUsername}/live`)
-		.setDescription("Check out Drzy's newest TikTok video!")
-		.setFooter({ text: "🎵 Don't forget to drop a follow!" })
-		.setTimestamp();
-		
-	const row = new ActionRowBuilder().addComponents(
-		new ButtonBuilder()
-			.setStyle(ButtonStyle.Link)
-			.setLabel('Watch on TikTok')
-			.setURL(`https://www.tiktok.com/@${tiktokUsername}/live`),
-	);
-		
-	try {
-		const targetChannel = await client.channels.fetch(channelId);
-		if (!targetChannel) {return;}
-
-		const sentMsg = await targetChannel.send({
-			content: roleId ? `Hey <@&${roleId}>, a new video just dropped!` : 'A new video just dropped!',
-			embeds: [embed],
-			components: [row], 
-		});
-
-		await sentMsg.react('🔥');
-	} catch (error) {
-		console.error('❌ Error sending Live Embed:', error.message);
-	}
-};
-
-const sendGiftEmbed = async (client, data) => {
-	const channelId = process.env.Donator_Channel;
-	const { user, gift, amount, totalCoins } = data;
-
-	const embed = new EmbedBuilder()
-		.setColor('#FFD700')
-		.setAuthor({ name: 'New TikTok Live Gift 🎁' })
-		.setTitle(`${user || 'Unknown User'} sent a ${gift || 'gift'}!`)
-		.setURL(`https://www.tiktok.com/@${tiktokUsername}/live`)
-		.addFields(
-			{
-				name: 'Amount',
-				value: `${amount}x ${gift}${amount === 1 ? '' : 's'}`,
-				inline: true,
-			},
-			{
-				name: 'Total Coins',
-				value: `${totalCoins} :coin:`,
-				inline: true,
-			},
-		)
-		.setFooter({ text: 'TikTok Live Gift Event' })
-		.setTimestamp();
-		
-	try {
-		const targetChannel = await client.channels.fetch(channelId);
-		if (!targetChannel) {
-			return;
-		}
-		
-		await targetChannel.send({ embeds: [embed] });
-	} catch (error) {
-		console.error('❌ Error sending Gift Embed:', error.message);
-	}
-};
-
+/**
+ * @function startTikTokMonitor
+ * @group Utility @subgroup Monitoring
+ * @summary Main entry point for starting the TikTok monitoring service
+ *
+ * @param {Client} client - DiscordJS Bot Client Object
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
 const startTikTokMonitor = (client) => {
 	connectToLive(client);
 };

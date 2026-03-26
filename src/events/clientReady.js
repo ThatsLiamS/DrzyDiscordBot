@@ -1,61 +1,74 @@
 const fs = require('fs');
+const path = require('path');
 
-// eslint-disable-next-line no-unused-vars
-const { Collection, Client } = require('discord.js');
+const {
+	Events,
+	Collection,
+} = require('discord.js');
 
-const tiktokMonitor = require('./../util/tiktokMonitor');
+const tiktokMonitor = require('../util/tiktokMonitor');
 
 module.exports = {
-	name: 'clientReady',
+	name: Events.ClientReady,
 	once: true,
 
 	/**
 	 * @async @function
 	 * @group Events
 	 * @summary Automatic bot set up (triggered once)
-	 * 
+	 *
 	 * @param {Client} client - DiscordJS Bot Client Object
-	 * 
-	 * @returns {Promise<boolean>} True (Success)
-	 * @returns {Promise<boolean>} False (Error)
-	 * 
+	 *
 	 * @author Liam Skinner <me@liamskinner.co.uk>
 	**/
 	execute: async (client) => {
+		const shardId = client.shard?.ids[0] ?? 0;
+		const totalShards = client.shard?.count ?? 1;
+		
+		console.log(`Ready - ${client.user.username} - Shard ${shardId + 1}/${totalShards}`);
 
-		console.log(`Ready - ${client.user.username} - Shard ${Number(client.shard.ids) + 1}/${client.shard.count}`);
-
-		/* Set client status */
 		client.user.setPresence({
 			status: 'online',
 			activities: [{
-				type: 1,
+				type: 0,
 				name: 'Follow my TikTok!',
 			}],
 		});
 
-		/* Registering slash commands */
 		client.commands = new Collection();
-		const data = [];
+		const commandData = [];
 
-		const categories = fs.readdirSync(`${__dirname}/../commands/`);
+		const commandPath = path.join(__dirname, '..', 'commands');
+		const categories = fs.readdirSync(commandPath);
+
 		for (const category of categories) {
-			const commandFiles = fs.readdirSync(`${__dirname}/../commands/${category}`).filter(file => file.endsWith('.js'));
-			for (const file of commandFiles) {
-
-				// eslint-disable-next-line security/detect-non-literal-require
-				const command = require(`${__dirname}/../commands/${category}/${file}`);
-				client.commands.set(command.name, command);
-				data.push(command.data.toJSON());
-
+			const categoryPath = path.join(commandPath, category);
+			
+			if (!fs.lstatSync(categoryPath).isDirectory()) {
+				continue;
 			}
 
+			const commandFiles = fs.readdirSync(categoryPath).filter(file => file.endsWith('.js'));
+
+			for (const file of commandFiles) {
+				const filePath = path.join(categoryPath, file);
+				// eslint-disable-next-line security/detect-non-literal-require
+				const command = require(filePath);
+
+				if (command.data && command.execute) {
+					client.commands.set(command.name, command);
+					commandData.push(command.data.toJSON());
+				}
+			}
 		}
 
-		/* Set ApplicationCommand data */
-		await client.application.commands.set(data);
+		try {
+			await client.application.commands.set(commandData);
+			tiktokMonitor(client);
 
-		/* Monitor TikTok: Streams & Gifts */
-		tiktokMonitor(client);
+		} catch (error) {
+			console.error('Error during client initialization:', error);
+
+		}
 	},
 };

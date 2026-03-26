@@ -1,5 +1,7 @@
 require('dotenv').config();
-const { ShardingManager } = require('discord.js');
+const {
+	ShardingManager,
+} = require('discord.js');
 const express = require('express');
 
 
