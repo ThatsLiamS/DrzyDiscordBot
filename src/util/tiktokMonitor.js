@@ -10,6 +10,8 @@ const {
 	WebcastEvent,
 } = require('tiktok-live-connector');
 
+const db = require('./databaseManager');
+
 const TIKTOK_USERNAME = 'drzy_mc';
 const MIN_GIFT_THRESHOLD = 50;
 
@@ -133,10 +135,28 @@ const processGift = (client, data) => {
 	}
 
 	sendGiftEmbed(client, {
-		user: user.uniqueId,
+		user: user.nickname || user.uniqueId,
 		gift: giftDetails.giftName,
 		amount,
 		totalCoins,
+	});
+};
+
+/**
+ * @function updateLiveState
+ * @group Utility @subgroup Monitoring
+ * @summary Updates the live status in both local memory and the database
+ *
+ * @param {boolean} status - The new live status
+ *
+ * @author Liam Skinner <me@liamskinner.co.uk>
+**/
+const updateLiveState = async (status) => {
+	isLive = status;
+	await db.setValue('system', 'tiktok', { 
+		isLive: status, 
+		lastUpdated: Date.now(),
+		username: TIKTOK_USERNAME,
 	});
 };
 
@@ -170,24 +190,33 @@ const handleDisconnect = (client) => {
  * @author Liam Skinner <me@liamskinner.co.uk>
 **/
 const connectToLive = (client) => {
+	if (connection) {
+		try { 
+			connection.disconnect(); 
+		} catch (err) {
+			console.warn('Failed to disconnect previous TikTok connection:', err.message);
+		}
+	}
+
+
 	connection = new TikTokLiveConnection(TIKTOK_USERNAME);
 
 	connection.connect()
-		.then(() => {
+		.then(async () => {
 			if (!isLive) {
-				isLive = true;
-				sendLiveEmbed(client);
+				await updateLiveState(true);
+				await sendLiveEmbed(client);
 			}
 		})
 		.catch(() => handleDisconnect(client));
 
-	connection.on(ControlEvent.DISCONNECTED, () => {
-		isLive = false;
+	connection.on(ControlEvent.DISCONNECTED, async () => {
+		await updateLiveState(false);
 		handleDisconnect(client);
 	});
 
-	connection.on(WebcastEvent.STREAM_END, () => {
-		isLive = false;
+	connection.on(WebcastEvent.STREAM_END, async () => {
+		await updateLiveState(false);
 		handleDisconnect(client);
 	});
 
@@ -195,7 +224,7 @@ const connectToLive = (client) => {
 };
 
 /**
- * @function startTikTokMonitor
+ * @async @function startTikTokMonitor
  * @group Utility @subgroup Monitoring
  * @summary Main entry point for starting the TikTok monitoring service
  *
@@ -203,7 +232,12 @@ const connectToLive = (client) => {
  *
  * @author Liam Skinner <me@liamskinner.co.uk>
 **/
-const startTikTokMonitor = (client) => {
+const startTikTokMonitor = async (client) => {
+	const data = await db.getValue('system', 'tiktok');
+	if (data) {
+		isLive = data.isLive;
+	}
+
 	connectToLive(client);
 };
 
