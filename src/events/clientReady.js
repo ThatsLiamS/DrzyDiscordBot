@@ -22,10 +22,7 @@ module.exports = {
 	 * @author Liam Skinner <me@liamskinner.co.uk>
 	**/
 	execute: async (client) => {
-		const shardId = client.shard?.ids[0] ?? 0;
-		const totalShards = client.shard?.count ?? 1;
-		
-		console.log(`Ready - ${client.user.username} - Shard ${shardId + 1}/${totalShards}`);
+		console.log(`${client.user.username} Is Ready!`);
 
 		client.user.setPresence({
 			status: 'online',
