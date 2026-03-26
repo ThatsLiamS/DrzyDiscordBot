@@ -3,6 +3,7 @@ const fs = require('fs');
 // eslint-disable-next-line no-unused-vars
 const { Collection, Client } = require('discord.js');
 
+const tiktokMonitor = require('./../util/tiktokMonitor');
 
 module.exports = {
 	name: 'clientReady',
@@ -53,6 +54,8 @@ module.exports = {
 
 		/* Set ApplicationCommand data */
 		await client.application.commands.set(data);
-		return true;
+
+		/* Monitor TikTok: Streams & Gifts */
+		tiktokMonitor(client);
 	},
 };

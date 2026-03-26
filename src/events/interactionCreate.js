@@ -76,10 +76,12 @@ module.exports = {
 
 			/* Does the command need referring? */
 			if (cmd?.defer?.defer === true) {
+				const flags = cmd.defer.ephemeral
+					? MessageFlags.Ephemeral
+					: '';
+
 				await interaction.deferReply({
-					ephemeral: cmd.defer.ephemeral
-						? true
-						: false,
+					flags,
 				});
 			}
 
