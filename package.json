@@ -5,8 +5,8 @@
 	"main": "src/index.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"build": "npm ci && npm run start",
-		"start": "node ."
+		"build": "npm install",
+		"start": "node src/index.js"
 	},
 	"repository": {
 		"type": "git",
@@ -28,6 +28,7 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.1",
+		"@flydotio/dockerfile": "^0.7.10",
 		"eslint": "^9.39.1",
 		"eslint-plugin-import": "^2.32.0",
 		"eslint-plugin-security": "^3.0.1",
