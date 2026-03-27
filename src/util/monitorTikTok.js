@@ -174,8 +174,8 @@ const connectToLive = async (client) => {
 				color: '#00F2FE',
 			});
 		}
-	} catch (err) {
-		console.error('[TikTok] Connection failed:', err.message);
+	}
+	catch {
 		handleDisconnect(client);
 	} finally {
 		isConnecting = false;

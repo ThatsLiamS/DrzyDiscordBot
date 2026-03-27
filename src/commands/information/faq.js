@@ -25,9 +25,8 @@ const FAQ_CONTENT = {
 		title: '🌍 World Information',
 		description: 'Details about the world Drzy is currently playing on:',
 		fields: [
-			{ name: 'Platform', value: 'Minecraft Java Edition', inline: false },
+			{ name: 'Platform', value: 'Minecraft Java 1.21.11', inline: false },
 			{ name: 'Seed', value: '*To Be Announced!*', inline: false },
-			{ name: 'World Type', value: '*To Be Announced!*', inline: false },
 		],
 	},
 	play: {

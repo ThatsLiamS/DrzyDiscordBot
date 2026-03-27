@@ -11,9 +11,10 @@ const express = require('express');
 
 
 const app = express();
+const port = process.env.PORT || 3000;
 
 app.get('/', (_req, res) => res.send('Hello World!'));
-app.listen(3000, () => {
+app.listen(port, () => {
 	const dateObj = new Date();
 	
 	const hours = dateObj.getHours().toString().padStart(2, '0');
@@ -55,20 +56,30 @@ const client = new Client({
 const loadEvents = (botClient) => {
 	const eventsPath = path.join(__dirname, 'events');
 	const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+	console.log(`Found ${eventFiles.length} event files in ${eventsPath}`);
 
 	for (const file of eventFiles) {
 		const filePath = path.join(eventsPath, file);
-		// eslint-disable-next-line security/detect-non-literal-require
-		const event = require(filePath);
 
-		if (event.once) {
-			botClient.once(event.name, (...args) => event.execute(...args, botClient));
-		} else {
-			botClient.on(event.name, (...args) => event.execute(...args, botClient));
+		try {
+			// eslint-disable-next-line security/detect-non-literal-require
+			const event = require(filePath);
+
+			console.log(`Registering event: ${event.name}`);
+
+			if (event.once) {
+				botClient.once(event.name, (...args) => event.execute(...args, botClient));
+			} else {
+				botClient.on(event.name, (...args) => event.execute(...args, botClient));
+			}
+		} catch (error) {
+			console.error(`Failed to load event: ${file}`, error);
 		}
 	}
 };
 
 loadEvents(client);
 
-client.login(process.env['BotToken']);
+client.login(process.env['BotToken']).catch(error => {
+	console.error('Failed to login to Discord:', error);
+});
