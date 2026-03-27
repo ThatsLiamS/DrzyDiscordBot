@@ -6,7 +6,7 @@ const {
 	Collection,
 } = require('discord.js');
 
-const tiktokMonitor = require('../util/tiktokMonitor');
+const monitorTikTok = require('../util/monitorTikTok');
 
 module.exports = {
 	name: Events.ClientReady,
@@ -61,11 +61,11 @@ module.exports = {
 
 		try {
 			await client.application.commands.set(commandData);
-			tiktokMonitor(client);
 
 		} catch (error) {
 			console.error('Error during client initialization:', error);
-
 		}
+
+		monitorTikTok(client);
 	},
 };
